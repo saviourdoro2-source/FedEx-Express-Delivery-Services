@@ -1,30 +1,106 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const usersRelations = relations(users, ({ many }) => ({
+  shipments: many(shipments),
+}));
+
 export const shipments = pgTable("shipments", {
-  id: serial("id").primaryKey(),
-  trackingNumber: text("tracking_number").notNull().unique(),
-  status: text("status").notNull(), // 'Label Created', 'On the Way', 'Out for Delivery', 'Delivered'
-  currentLocation: text("current_location").notNull(),
-  estimatedDelivery: text("estimated_delivery").notNull(),
-  lastUpdated: timestamp("last_updated").defaultNow(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  trackingId: varchar("tracking_id", { length: 20 }).notNull().unique(),
+  senderName: text("sender_name").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  origin: text("origin").notNull(),
+  destination: text("destination").notNull(),
+  weightKg: integer("weight_kg"),
+  status: text("status").notNull().default("Created"),
+  createdById: varchar("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const subscriptions = pgTable("subscriptions", {
-  id: serial("id").primaryKey(),
-  trackingNumber: text("tracking_number").notNull(),
-  phoneNumber: text("phone_number").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [shipments.createdById],
+    references: [users.id],
+  }),
+  events: many(shipmentEvents),
+}));
+
+export const shipmentEvents = pgTable("shipment_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  shipmentId: varchar("shipment_id").references(() => shipments.id).notNull(),
+  status: text("status").notNull(),
+  location: text("location").notNull(),
+  note: text("note"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
-export const insertShipmentSchema = createInsertSchema(shipments).omit({ id: true, lastUpdated: true });
-export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, createdAt: true });
+export const shipmentEventsRelations = relations(shipmentEvents, ({ one }) => ({
+  shipment: one(shipments, {
+    fields: [shipmentEvents.shipmentId],
+    references: [shipments.id],
+  }),
+}));
 
+export const insertUserSchema = createInsertSchema(users).pick({
+  name: true,
+  email: true,
+  passwordHash: true,
+});
+
+export const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export const insertShipmentSchema = createInsertSchema(shipments).omit({
+  id: true,
+  trackingId: true,
+  status: true,
+  createdById: true,
+  createdAt: true,
+});
+
+export const createShipmentSchema = z.object({
+  senderName: z.string().min(2, "Sender name is required"),
+  recipientName: z.string().min(2, "Recipient name is required"),
+  origin: z.string().min(2, "Origin is required"),
+  destination: z.string().min(2, "Destination is required"),
+  weightKg: z.number().optional(),
+});
+
+export const insertShipmentEventSchema = createInsertSchema(shipmentEvents).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const addEventSchema = z.object({
+  status: z.string().min(1, "Status is required"),
+  location: z.string().min(1, "Location is required"),
+  note: z.string().optional(),
+});
+
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
 export type Shipment = typeof shipments.$inferSelect;
 export type InsertShipment = z.infer<typeof insertShipmentSchema>;
-export type Subscription = typeof subscriptions.$inferSelect;
-export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
-
-export type CreateShipmentRequest = InsertShipment;
-export type CreateSubscriptionRequest = InsertSubscription;
+export type ShipmentEvent = typeof shipmentEvents.$inferSelect;
+export type InsertShipmentEvent = z.infer<typeof insertShipmentEventSchema>;
