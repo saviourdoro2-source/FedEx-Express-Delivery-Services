@@ -1,38 +1,35 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  shipments,
+  subscriptions,
+  type CreateShipmentRequest,
+  type CreateSubscriptionRequest,
+  type Shipment,
+  type Subscription
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getShipmentByTracking(trackingNumber: string): Promise<Shipment | undefined>;
+  createShipment(shipment: CreateShipmentRequest): Promise<Shipment>;
+  createSubscription(subscription: CreateSubscriptionRequest): Promise<Subscription>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getShipmentByTracking(trackingNumber: string): Promise<Shipment | undefined> {
+    const [shipment] = await db.select().from(shipments).where(eq(shipments.trackingNumber, trackingNumber));
+    return shipment;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createShipment(shipment: CreateShipmentRequest): Promise<Shipment> {
+    const [newShipment] = await db.insert(shipments).values(shipment).returning();
+    return newShipment;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createSubscription(subscription: CreateSubscriptionRequest): Promise<Subscription> {
+    const [newSubscription] = await db.insert(subscriptions).values(subscription).returning();
+    return newSubscription;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
