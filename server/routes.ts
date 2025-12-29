@@ -37,9 +37,8 @@ export async function registerRoutes(
       const input = api.subscriptions.create.input.parse(req.body);
       const subscription = await storage.createSubscription(input);
       
-      // TODO: Integrate Twilio SMS sending here using the installed 'twilio' package
-      // const client = require('twilio')(accountSid, authToken);
-      // await client.messages.create({ ... });
+      // Twilio SMS integration pending user configuration
+      console.log('Subscription created for:', input.phoneNumber);
       
       res.status(201).json(subscription);
     } catch (err) {
