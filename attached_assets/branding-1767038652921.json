@@ -1,0 +1,102 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Montserrat",
+      "count": 41
+    },
+    {
+      "family": "system-ui",
+      "count": 41
+    },
+    {
+      "family": "-apple-system",
+      "count": 41
+    },
+    {
+      "family": "sans-serif",
+      "count": 41
+    }
+  ],
+  "colors": {
+    "primary": "#4E2E84",
+    "accent": "#221537",
+    "background": "#F7F7F8",
+    "textPrimary": "#221537",
+    "link": "#221537"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Montserrat",
+      "heading": "Montserrat"
+    },
+    "fontStacks": {
+      "body": [
+        "Montserrat",
+        "system-ui",
+        "-apple-system",
+        "sans-serif"
+      ],
+      "heading": [
+        "Montserrat",
+        "system-ui",
+        "-apple-system",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Montserrat",
+        "system-ui",
+        "-apple-system",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "60px",
+      "h2": "36px",
+      "body": "18px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "6px"
+  },
+  "components": {
+    "input": {
+      "background": "#F7F7F8",
+      "textColor": "#221537",
+      "borderColor": "#9485AD",
+      "borderRadius": "6px",
+      "borderRadiusCorners": {
+        "topLeft": "6px",
+        "topRight": "6px",
+        "bottomRight": "6px",
+        "bottomLeft": "6px"
+      },
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": null,
+    "favicon": "https://fed-ex-express-services--fedexexpress.replit.app/favicon.png",
+    "ogImage": null
+  },
+  "__framework_hints": [],
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": -1,
+      "text": "N/A",
+      "reasoning": "LLM failed"
+    },
+    "secondary": {
+      "index": -1,
+      "text": "N/A",
+      "reasoning": "LLM failed"
+    },
+    "confidence": 0
+  },
+  "confidence": {
+    "buttons": 0,
+    "colors": 0,
+    "overall": 0
+  }
+}
