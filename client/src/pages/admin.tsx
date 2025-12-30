@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -25,6 +27,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -38,7 +48,10 @@ import {
   AlertCircle,
   CheckCircle,
   Truck,
-  MapPin
+  MapPin,
+  Plus,
+  Copy,
+  Zap
 } from "lucide-react";
 import type { Shipment } from "@shared/schema";
 
@@ -241,6 +254,7 @@ function ShipmentsTable() {
           <TableHead>Tracking ID</TableHead>
           <TableHead>Route</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Verification Code</TableHead>
           <TableHead>Created</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -248,7 +262,7 @@ function ShipmentsTable() {
       <TableBody>
         {shipments.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
               No shipments found
             </TableCell>
           </TableRow>
@@ -270,6 +284,9 @@ function ShipmentsTable() {
                 <Badge className={getStatusColor(shipment.status)} data-testid={`badge-status-${shipment.id}`}>
                   {shipment.status}
                 </Badge>
+              </TableCell>
+              <TableCell className="font-mono" data-testid={`text-code-${shipment.id}`}>
+                {shipment.verificationCode || "—"}
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {new Date(shipment.createdAt).toLocaleDateString()}
@@ -314,6 +331,214 @@ function ShipmentsTable() {
         )}
       </TableBody>
     </Table>
+  );
+}
+
+function AdminCreateShipmentDialog({ onSuccess }: { onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [senderName, setSenderName] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [weightKg, setWeightKg] = useState("");
+  const { toast } = useToast();
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: async (data: {
+      senderName: string;
+      recipientName: string;
+      origin: string;
+      destination: string;
+      weightKg?: number;
+    }) => {
+      const res = await apiRequest("POST", "/api/admin/shipments", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedCode(data.verificationCode);
+      toast({
+        title: "Shipment created!",
+        description: `Tracking ID: ${data.shipment.trackingId}`,
+      });
+      setTimeout(() => {
+        setOpen(false);
+        resetForm();
+        onSuccess();
+      }, 2000);
+    },
+    onError: (err) => {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to create shipment",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setSenderName("");
+    setRecipientName("");
+    setOrigin("");
+    setDestination("");
+    setWeightKg("");
+    setGeneratedCode(null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!senderName || !recipientName || !origin || !destination) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+    mutation.mutate({
+      senderName,
+      recipientName,
+      origin,
+      destination,
+      weightKg: weightKg ? parseInt(weightKg) : undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button data-testid="button-admin-create-shipment">
+          <Plus className="mr-2 h-4 w-4" />
+          Create Shipment
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create Shipment (Admin)</DialogTitle>
+          <DialogDescription>
+            Create a shipment with auto-generated verification code
+          </DialogDescription>
+        </DialogHeader>
+        
+        {generatedCode && (
+          <div className="bg-green-50 dark:bg-green-950 p-4 rounded-md border border-green-200 dark:border-green-800">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+                  Verification Code Generated
+                </p>
+                <p className="text-2xl font-bold font-mono text-green-700 dark:text-green-300">
+                  {generatedCode}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedCode);
+                  toast({
+                    title: "Copied!",
+                    description: "Code copied to clipboard",
+                  });
+                }}
+                data-testid="button-copy-code"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="senderName">Sender Name *</Label>
+              <Input
+                id="senderName"
+                placeholder="John Doe"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                disabled={mutation.isPending}
+                data-testid="input-admin-sender"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="recipientName">Recipient Name *</Label>
+              <Input
+                id="recipientName"
+                placeholder="Jane Smith"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                disabled={mutation.isPending}
+                data-testid="input-admin-recipient"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="origin">Origin City *</Label>
+              <Input
+                id="origin"
+                placeholder="New York, NY"
+                value={origin}
+                onChange={(e) => setOrigin(e.target.value)}
+                disabled={mutation.isPending}
+                data-testid="input-admin-origin"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="destination">Destination City *</Label>
+              <Input
+                id="destination"
+                placeholder="Los Angeles, CA"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                disabled={mutation.isPending}
+                data-testid="input-admin-destination"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="weightKg">Weight (kg, optional)</Label>
+            <Input
+              id="weightKg"
+              type="number"
+              placeholder="5"
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              disabled={mutation.isPending}
+              data-testid="input-admin-weight"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setOpen(false);
+                resetForm();
+              }}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending} data-testid="button-admin-submit">
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Zap className="mr-2 h-4 w-4" />
+                  Create Shipment
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -390,14 +615,17 @@ export default function AdminPage() {
 
           <TabsContent value="shipments">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Shipment Management
-                </CardTitle>
-                <CardDescription>
-                  View and manage all shipments in the system
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Shipment Management
+                  </CardTitle>
+                  <CardDescription>
+                    View and manage all shipments in the system
+                  </CardDescription>
+                </div>
+                <AdminCreateShipmentDialog onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/shipments"] })} />
               </CardHeader>
               <CardContent>
                 <ShipmentsTable />

@@ -8,9 +8,10 @@ import {
   authMiddleware,
   adminMiddleware,
   generateTrackingId,
+  generateVerificationCode,
   type AuthenticatedRequest 
 } from "./auth";
-import { registerSchema, loginSchema, createShipmentSchema, addEventSchema } from "@shared/schema";
+import { registerSchema, loginSchema, createShipmentSchema, addEventSchema, verifyCodeSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -84,6 +85,91 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/verification/generate", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { type } = req.body;
+      if (!type || (type !== "email" && type !== "phone")) {
+        res.status(400).json({ error: "Invalid verification type" });
+        return;
+      }
+
+      const code = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.createVerificationCode({
+        id: "",
+        userId: req.user!.id,
+        code,
+        type,
+        isUsed: false,
+        expiresAt,
+        createdAt: new Date(),
+      });
+
+      res.json({ code, message: `Verification code sent via ${type}` });
+    } catch (err) {
+      console.error("Generate verification error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/verification/verify", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { code, type } = req.body;
+      if (!code || !type) {
+        res.status(400).json({ error: "Code and type are required" });
+        return;
+      }
+
+      const vCode = await storage.getVerificationCode(code, type);
+      if (!vCode || vCode.userId !== req.user!.id) {
+        res.status(400).json({ error: "Invalid or expired code" });
+        return;
+      }
+
+      await storage.markVerificationCodeUsed(vCode.id);
+      const emailVerified = type === "email" ? true : undefined;
+      const phoneVerified = type === "phone" ? true : undefined;
+      await storage.updateUserVerification(req.user!.id, emailVerified, phoneVerified);
+
+      res.json({ message: `${type} verified successfully` });
+    } catch (err) {
+      console.error("Verify code error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/shipping-services", async (req, res) => {
+    try {
+      const services = await storage.getShippingServices();
+      res.json({ services });
+    } catch (err) {
+      console.error("Get services error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/admin/shipping-services", adminMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { name, price, description } = req.body;
+      if (!name || !price) {
+        res.status(400).json({ error: "Name and price are required" });
+        return;
+      }
+
+      const service = await storage.createShippingService({
+        name,
+        price: price.toString(),
+        description: description || null,
+      });
+
+      res.json({ service });
+    } catch (err) {
+      console.error("Create service error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.post("/api/shipments", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const parsed = createShipmentSchema.safeParse(req.body);
@@ -93,7 +179,7 @@ export async function registerRoutes(
         return;
       }
 
-      const { senderName, recipientName, origin, destination, weightKg } = parsed.data;
+      const { senderName, recipientName, origin, destination, weightKg, serviceId, verificationCode } = parsed.data;
       const trackingId = generateTrackingId();
 
       const shipment = await storage.createShipment({
@@ -104,7 +190,10 @@ export async function registerRoutes(
         destination,
         weightKg: weightKg || null,
         status: "Created",
-        createdById: req.user!.id
+        createdById: req.user!.id,
+        serviceId: serviceId || null,
+        verificationCode: verificationCode || null,
+        verificationCodeUsed: false,
       });
 
       await storage.createShipmentEvent({
@@ -117,6 +206,47 @@ export async function registerRoutes(
       res.json({ shipment });
     } catch (err) {
       console.error("Create shipment error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/admin/shipments", adminMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = createShipmentSchema.safeParse(req.body);
+      
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+        return;
+      }
+
+      const { senderName, recipientName, origin, destination, weightKg, serviceId } = parsed.data;
+      const trackingId = generateTrackingId();
+      const verificationCode = generateVerificationCode();
+
+      const shipment = await storage.createShipment({
+        trackingId,
+        senderName,
+        recipientName,
+        origin,
+        destination,
+        weightKg: weightKg || null,
+        status: "Created",
+        createdById: req.user!.id,
+        serviceId: serviceId || null,
+        verificationCode,
+        verificationCodeUsed: false,
+      });
+
+      await storage.createShipmentEvent({
+        shipmentId: shipment.id,
+        status: "Created",
+        location: origin,
+        note: "Shipment created by admin"
+      });
+
+      res.json({ shipment, verificationCode });
+    } catch (err) {
+      console.error("Create admin shipment error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -146,6 +276,35 @@ export async function registerRoutes(
       res.json({ shipment, events });
     } catch (err) {
       console.error("Track shipment error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.post("/api/shipments/:trackingId/verify", async (req, res) => {
+    try {
+      const { trackingId } = req.params;
+      const { verificationCode } = req.body;
+
+      if (!verificationCode) {
+        res.status(400).json({ error: "Verification code is required" });
+        return;
+      }
+
+      const shipment = await storage.getShipmentByTrackingId(trackingId);
+      if (!shipment) {
+        res.status(404).json({ error: "Shipment not found" });
+        return;
+      }
+
+      if (shipment.verificationCode !== verificationCode) {
+        res.status(400).json({ error: "Invalid verification code" });
+        return;
+      }
+
+      const updated = await storage.updateShipmentVerification(trackingId, verificationCode);
+      res.json({ shipment: updated });
+    } catch (err) {
+      console.error("Verify shipment error:", err);
       res.status(500).json({ error: "Server error" });
     }
   });
