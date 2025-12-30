@@ -59,7 +59,7 @@ export default function RegisterPage() {
         title: "Account created!",
         description: "Welcome to FedExpress."
       });
-      navigate("/dashboard");
+      navigate("/verify?type=email");
     } catch (err) {
       toast({
         title: "Registration failed",

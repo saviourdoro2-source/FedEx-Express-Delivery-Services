@@ -11,6 +11,7 @@ import AboutPage from "@/pages/about";
 import ServicesPage from "@/pages/services";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import VerifyPage from "@/pages/verify";
 import TrackingPage from "@/pages/tracking";
 import DashboardPage from "@/pages/dashboard";
 import AdminPage from "@/pages/admin";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/services" component={ServicesPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/verify" component={VerifyPage} />
       <Route path="/tracking" component={TrackingPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin" component={AdminPage} />
