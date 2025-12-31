@@ -15,6 +15,7 @@ export default function VerifyPage() {
   const [verificationType, setVerificationType] = useState<"email" | "phone">("email");
   const [isLoading, setIsLoading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -32,6 +33,7 @@ export default function VerifyPage() {
     try {
       const res = await apiRequest("POST", "/api/verification/generate", { type: verificationType });
       const data = await res.json();
+      setGeneratedCode(data.code);
       toast({
         title: "Code sent!",
         description: data.message,
@@ -165,6 +167,18 @@ export default function VerifyPage() {
                     "Send Verification Code"
                   )}
                 </Button>
+
+                {generatedCode && (
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-4">
+                    <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">Your verification code:</p>
+                    <div className="font-mono text-2xl font-bold text-center text-blue-900 dark:text-blue-100 tracking-widest" data-testid="text-verification-code">
+                      {generatedCode}
+                    </div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
+                      Copy this code and paste it below (test mode)
+                    </p>
+                  </div>
+                )}
 
                 <form onSubmit={handleVerify} className="space-y-4">
                   <div className="space-y-2">
