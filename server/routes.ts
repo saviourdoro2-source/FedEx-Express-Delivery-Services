@@ -28,7 +28,7 @@ export async function registerRoutes(
         return;
       }
 
-      const { name, email, password } = parsed.data;
+      const { name, email, phone, password } = parsed.data;
 
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
@@ -37,7 +37,7 @@ export async function registerRoutes(
       }
 
       const passwordHash = await hashPassword(password);
-      const user = await storage.createUser({ name, email, passwordHash });
+      const user = await storage.createUser({ name, email, phoneNumber: phone, passwordHash });
       const token = generateToken(user.id);
 
       res.json({
