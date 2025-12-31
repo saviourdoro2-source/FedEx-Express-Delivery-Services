@@ -97,14 +97,12 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await storage.createVerificationCode({
-        id: "",
         userId: req.user!.id,
         code,
         type,
         isUsed: false,
         expiresAt,
-        createdAt: new Date(),
-      });
+      } as any);
 
       res.json({ code, message: `Verification code sent via ${type}` });
     } catch (err) {
